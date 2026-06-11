@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f14">
+<title>Prompt Library</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>">
+<style>
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a23;
+    --surface-2: #232330;
+    --border: #2e2e3e;
+    --text: #ececf1;
+    --text-dim: #9494a8;
+    --accent: #8b7cf6;
+    --accent-soft: rgba(139, 124, 246, 0.15);
+    --green: #4ade80;
+    --red: #f87171;
+    --radius: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overscroll-behavior-y: none;
+  }
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(15, 15, 20, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: calc(env(safe-area-inset-top) + 14px) 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+  h1 .spark { color: var(--accent); }
+  .icon-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); width: 38px; height: 38px; border-radius: 12px;
+    font-size: 1.05rem; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .icon-btn:active { background: var(--surface-2); }
+  .header-actions { display: flex; gap: 8px; }
+  .search-wrap { position: relative; }
+  .search-wrap .mag {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    color: var(--text-dim); font-size: 0.95rem; pointer-events: none;
+  }
+  #search {
+    width: 100%;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 38px;
+    color: var(--text); font-size: 1rem; outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #search::placeholder { color: var(--text-dim); }
+  #clearSearch {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-dim);
+    font-size: 1rem; padding: 6px 8px; cursor: pointer; display: none;
+  }
+  /* ---------- Filter chips ---------- */
+  .chips {
+    display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 2px;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; padding: 7px 14px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; white-space: nowrap;
+  }
+  .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  /* ---------- List ---------- */
+  main { padding: 14px 16px calc(env(safe-area-inset-bottom) + 110px); max-width: 680px; margin: 0 auto; }
+  .count-row {
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--text-dim); font-size: 0.8rem; margin-bottom: 10px; padding: 0 2px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 15px 16px; margin-bottom: 12px;
+    cursor: pointer;
+  }
+  .card:active { background: var(--surface-2); }
+  .card-top { display: flex; align-items: flex-start; gap: 10px; }
+  .tool-badge {
+    font-size: 0.7rem; font-weight: 600; padding: 4px 9px; border-radius: 999px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .card-badges {
+    display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;
+    flex-shrink: 0; max-width: 46%;
+  }
+  .card-title { font-size: 1rem; font-weight: 600; flex: 1; line-height: 1.35; word-break: break-word; }
+  .fav-star { font-size: 1rem; flex-shrink: 0; }
+  .card-preview {
+    color: var(--text-dim); font-size: 0.85rem; line-height: 1.45;
+    margin-top: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    word-break: break-word;
+  }
+  .card-bottom { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .tag {
+    font-size: 0.72rem; color: var(--text-dim); background: var(--surface-2);
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .copy-btn {
+    margin-left: auto; background: var(--accent-soft); color: var(--accent);
+    border: none; border-radius: 10px; padding: 7px 14px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  }
+  .copy-btn:active { opacity: 0.7; }
+  .empty {
+    text-align: center; padding: 70px 24px; color: var(--text-dim);
+  }
+  .empty .big { font-size: 3rem; margin-bottom: 14px; }
+  .empty p { font-size: 0.95rem; line-height: 1.5; }
+  /* ---------- FAB ---------- */
+  #fab {
+    position: fixed; right: 20px; bottom: calc(env(safe-area-inset-bottom) + 24px);
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 1.7rem; font-weight: 300; line-height: 1;
+    box-shadow: 0 6px 20px rgba(139, 124, 246, 0.45);
+    cursor: pointer; z-index: 30;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #fab:active { transform: scale(0.93); }
+  /* ---------- Sheets / modals ---------- */
+  .sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 40;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: var(--surface); border-radius: 22px 22px 0 0;
+    max-height: 92dvh; overflow-y: auto;
+    transform: translateY(105%); transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    padding: 10px 20px calc(env(safe-area-inset-bottom) + 20px);
+    max-width: 680px; margin: 0 auto;
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet-handle {
+    width: 40px; height: 4px; background: var(--border); border-radius: 2px;
+    margin: 6px auto 16px;
+  }
+  .sheet h2 { font-size: 1.15rem; margin-bottom: 18px; }
+  label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); margin: 14px 0 6px; }
+  input[type="text"], textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; color: var(--text);
+    font-size: 1rem; font-family: inherit; outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 140px; line-height: 1.5; }
+  .tool-options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tool-opt {
+    padding: 9px 14px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 0.88rem; font-weight: 500; cursor: pointer;
+  }
+  .tool-opt.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .attach-btn {
+    background: var(--surface-2); border: 1px dashed var(--border); color: var(--text-dim);
+    border-radius: 10px; padding: 9px 14px; font-size: 0.85rem; cursor: pointer;
+  }
+  .attach-btn:active { border-color: var(--accent); color: var(--accent); }
+  .attach-chip {
+    display: inline-flex; align-items: center; gap: 10px; margin-top: 10px;
+    background: var(--accent-soft); color: var(--accent); border-radius: 10px;
+    padding: 8px 12px; font-size: 0.82rem; max-width: 100%;
+  }
+  .attach-chip .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attach-chip .x { cursor: pointer; font-weight: 700; padding: 0 2px; }
+  .btn-row { display: flex; gap: 10px; margin-top: 22px; }
+  .btn {
+    flex: 1; padding: 14px; border-radius: 13px; border: none;
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: rgba(248, 113, 113, 0.12); color: var(--red); }
+  .btn:active { opacity: 0.8; }
+  /* ---------- Detail view ---------- */
+  .detail-tool { margin-bottom: 10px; }
+  .detail-title { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin-bottom: 6px; word-break: break-word; }
+  .detail-meta { color: var(--text-dim); font-size: 0.78rem; margin-bottom: 14px; }
+  .detail-content {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap;
+    word-break: break-word; max-height: 38dvh; overflow-y: auto;
+  }
+  .detail-notes {
+    margin-top: 12px; color: var(--text-dim); font-size: 0.88rem;
+    line-height: 1.5; white-space: pre-wrap;
+  }
+  .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  /* ---------- Toast ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px);
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text); padding: 11px 22px; border-radius: 999px;
+    font-size: 0.88rem; font-weight: 500; z-index: 100;
+    opacity: 0; pointer-events: none; transition: all 0.25s; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* ---------- Settings menu ---------- */
+  .menu-item {
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    background: none; border: none; color: var(--text);
+    padding: 16px 4px; font-size: 1rem; cursor: pointer; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .menu-item:last-child { border-bottom: none; }
+  .menu-item .mi { font-size: 1.2rem; width: 28px; text-align: center; }
+  .menu-item small { display: block; color: var(--text-dim); font-size: 0.78rem; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <h1><span class="spark">✦</span> Prompt Library</h1>
+    <div class="header-actions">
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙︎</button>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <span class="mag">🔍</span>
+    <input id="search" type="text" placeholder="Search prompts, tags…" autocomplete="off">
+    <button id="clearSearch" aria-label="Clear">✕</button>
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<main>
+  <div class="count-row"><span id="countLabel"></span><span id="favToggle" style="cursor:pointer">☆ Favorites</span></div>
+  <div id="list"></div>
+</main>
+
+<button id="fab" aria-label="Add prompt">+</button>
+
+<!-- Editor sheet -->
+<div class="sheet-backdrop" id="editorBackdrop"></div>
+<div class="sheet" id="editorSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="editorTitle">New Prompt</h2>
+  <label for="fTitle">Title</label>
+  <input type="text" id="fTitle" placeholder="e.g. Code reviewer skill">
+  <label>AI Tools <span style="font-weight:400">(select one or more)</span></label>
+  <div class="tool-options" id="fTools"></div>
+  <div id="customToolWrap" style="display:none">
+    <label for="fCustomTool">Custom tool name</label>
+    <input type="text" id="fCustomTool" placeholder="e.g. Perplexity">
+  </div>
+  <label for="fContent">Prompt / Skill content</label>
+  <textarea id="fContent" placeholder="Paste your prompt, system instructions, or skill definition here…"></textarea>
+  <div style="margin-top:10px">
+    <button type="button" class="attach-btn" id="attachBtn">📎 Upload a file</button>
+    <input type="file" id="attachFile" style="display:none">
+    <div id="attachInfo"></div>
+  </div>
+  <label for="fTags">Tags <span style="font-weight:400">(comma separated)</span></label>
+  <input type="text" id="fTags" placeholder="coding, writing, research">
+  <label for="fNotes">Notes <span style="font-weight:400">(optional)</span></label>
+  <textarea id="fNotes" style="min-height:70px" placeholder="When to use it, tips, version notes…"></textarea>
+  <div class="btn-row">
+    <button class="btn btn-secondary" id="cancelEdit">Cancel</button>
+    <button class="btn btn-primary" id="saveEdit">Save</button>
+  </div>
+</div>
+
+<!-- Detail sheet -->
+<div class="sheet-backdrop" id="detailBackdrop"></div>
+<div class="sheet" id="detailSheet">
+  <div class="sheet-handle"></div>
+  <div class="detail-tool" id="dTool" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  <div class="detail-title" id="dTitle"></div>
+  <div class="detail-meta" id="dMeta"></div>
+  <div class="detail-content" id="dContent"></div>
+  <div id="dAttach"></div>
+  <div class="detail-notes" id="dNotes"></div>
+  <div class="detail-tags" id="dTags"></div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="dCopy">📋 Copy</button>
+    <button class="btn btn-secondary" id="dFav">☆</button>
+    <button class="btn btn-secondary" id="dEdit">✏️</button>
+    <button class="btn btn-danger" id="dDelete">🗑</button>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet-backdrop" id="settingsBackdrop"></div>
+<div class="sheet" id="settingsSheet">
+  <div class="sheet-handle"></div>
+  <h2>Settings</h2>
+  <button class="menu-item" id="exportBtn">
+    <span class="mi">⬇️</span>
+    <span>Export backup<small>Download all prompts as a JSON file</small></span>
+  </button>
+  <button class="menu-item" id="importBtn">
+    <span class="mi">⬆️</span>
+    <span>Import backup<small>Restore prompts from a JSON file (merges)</small></span>
+  </button>
+  <button class="menu-item" id="shareBtn">
+    <span class="mi">📤</span>
+    <span>Share backup<small>Send your library via the share sheet</small></span>
+  </button>
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const STORE_KEY = "promptLibrary.v1";
+
+  const TOOLS = [
+    { id: "claude-skill",  name: "Claude Skill",   color: "#d97757" },
+    { id: "claude-prompt", name: "Claude Prompt",  color: "#e8a87c" },
+    { id: "gemini-gem",    name: "Gemini Gem",     color: "#4e8df5" },
+    { id: "chatgpt",       name: "ChatGPT / GPT",  color: "#10a37f" },
+    { id: "copilot",       name: "Copilot",        color: "#9a6bff" },
+    { id: "midjourney",    name: "Midjourney",     color: "#e4628d" },
+    { id: "perplexity",    name: "Perplexity",     color: "#22b8cf" },
+    { id: "other",         name: "Other…",         color: "#8a8a9e" },
+  ];
+
+  // ---------- State ----------
+  let prompts = load();
+  let filterTool = "all";
+  let searchQuery = "";
+  let favOnly = false;
+  let editingId = null;
+  let detailId = null;
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        // Migrate old single-tool records to the multi-tool format
+        arr.forEach(p => { if (!Array.isArray(p.tools)) p.tools = p.tool ? [p.tool] : []; });
+        return arr;
+      }
+    } catch (e) { console.error("load failed", e); }
+    // First run: seed with examples so the app isn't empty
+    return [
+      {
+        id: uid(), title: "Welcome — tap me!", tools: ["other"], customTool: "",
+        content: "This is your prompt library. Tap + to add prompts and skills for Claude, Gemini Gems, ChatGPT and more.\n\nTip: on your phone, open this page in Safari/Chrome and use “Add to Home Screen” to install it like an app.",
+        tags: ["example"], notes: "You can delete this card once you've added your own prompts.",
+        favorite: false, createdAt: Date.now(), updatedAt: Date.now(),
+      },
+    ];
+  }
+  function persist() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(prompts)); }
+    catch (e) { toast("⚠️ Could not save (storage full?)"); }
+  }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  function toolMeta(id, customTool) {
+    const t = TOOLS.find(t => t.id === id) || TOOLS[TOOLS.length - 1];
+    const name = (id === "other" && customTool) ? customTool : t.name.replace("…", "");
+    return { name, color: t.color };
+  }
+  function toolList(p) { return (p.tools || []).map(id => toolMeta(id, p.customTool)); }
+  function badgeHtml(t) {
+    return `<span class="tool-badge" style="background:${t.color}22;color:${t.color}">${esc(t.name)}</span>`;
+  }
+
+  // ---------- Elements ----------
+  const $ = id => document.getElementById(id);
+  const listEl = $("list"), chipsEl = $("chips"), searchEl = $("search");
+
+  // ---------- Rendering ----------
+  function customToolNames() {
+    const names = new Set();
+    prompts.forEach(p => { if ((p.tools || []).includes("other") && p.customTool) names.add(p.customTool); });
+    return [...names];
+  }
+
+  function renderChips() {
+    const used = new Set(prompts.flatMap(p => p.tools || []));
+    let html = `<button class="chip ${filterTool === "all" ? "active" : ""}" data-tool="all">All</button>`;
+    TOOLS.forEach(t => {
+      if (t.id === "other" || !used.has(t.id)) return;
+      html += `<button class="chip ${filterTool === t.id ? "active" : ""}" data-tool="${t.id}">${esc(t.name)}</button>`;
+    });
+    customToolNames().forEach(name => {
+      const key = "custom:" + name;
+      html += `<button class="chip ${filterTool === key ? "active" : ""}" data-tool="${esc(key)}">${esc(name)}</button>`;
+    });
+    chipsEl.innerHTML = html;
+  }
+
+  function matches(p) {
+    if (favOnly && !p.favorite) return false;
+    if (filterTool !== "all") {
+      const tools = p.tools || [];
+      if (filterTool.startsWith("custom:")) {
+        if (!(tools.includes("other") && p.customTool === filterTool.slice(7))) return false;
+      } else if (!tools.includes(filterTool)) return false;
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const hay = [p.title, p.content, p.notes, (p.tags || []).join(" "), toolList(p).map(t => t.name).join(" ")].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
+
+  function renderList() {
+    const items = prompts.filter(matches)
+      .sort((a, b) => (b.favorite - a.favorite) || (b.updatedAt - a.updatedAt));
+    $("countLabel").textContent = `${items.length} prompt${items.length === 1 ? "" : "s"}`;
+    $("favToggle").innerHTML = favOnly ? "★ Favorites" : "☆ Favorites";
+    $("favToggle").style.color = favOnly ? "var(--accent)" : "";
+
+    if (!items.length) {
+      listEl.innerHTML = `<div class="empty"><div class="big">✨</div><p>${
+        prompts.length ? "No prompts match your search." : "No prompts yet.<br>Tap <b>+</b> to add your first one!"
+      }</p></div>`;
+      return;
+    }
+    listEl.innerHTML = items.map(p => {
+      return `<div class="card" data-id="${p.id}">
+        <div class="card-top">
+          <div class="card-title">${p.favorite ? '<span class="fav-star">★</span> ' : ""}${esc(p.title)}</div>
+          <div class="card-badges">${toolList(p).map(badgeHtml).join("")}</div>
+        </div>
+        <div class="card-preview">${esc(p.content)}</div>
+        <div class="card-bottom">
+          ${p.attachment ? '<span class="tag">📎</span>' : ""}
+          ${(p.tags || []).slice(0, 3).map(tag => `<span class="tag">#${esc(tag)}</span>`).join("")}
+          <button class="copy-btn" data-copy="${p.id}">Copy</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function render() { renderChips(); renderList(); }
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---------- Sheets ----------
+  function openSheet(name) {
+    $(name + "Backdrop").classList.add("open");
+    $(name + "Sheet").classList.add("open");
+  }
+  function closeSheet(name) {
+    $(name + "Backdrop").classList.remove("open");
+    $(name + "Sheet").classList.remove("open");
+  }
+  ["editor", "detail", "settings"].forEach(name => {
+    $(name + "Backdrop").addEventListener("click", () => closeSheet(name));
+  });
+
+  // ---------- Editor ----------
+  const toolsEl = $("fTools");
+  let selectedTools = new Set();
+  function renderToolOptions() {
+    toolsEl.innerHTML = TOOLS.map(t =>
+      `<button type="button" class="tool-opt ${selectedTools.has(t.id) ? "selected" : ""}" data-id="${t.id}">${esc(t.name)}</button>`
+    ).join("");
+    $("customToolWrap").style.display = selectedTools.has("other") ? "" : "none";
+  }
+  toolsEl.addEventListener("click", e => {
+    const btn = e.target.closest(".tool-opt");
+    if (!btn) return;
+    if (selectedTools.has(btn.dataset.id)) selectedTools.delete(btn.dataset.id);
+    else selectedTools.add(btn.dataset.id);
+    renderToolOptions();
+  });
+
+  // ---------- File upload ----------
+  const MAX_FILE = 2 * 1024 * 1024; // localStorage is small — cap attachments at 2 MB
+  let editingAttachment = null;
+  function fmtSize(b) {
+    return b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(1) + " MB";
+  }
+  function renderAttachInfo() {
+    $("attachInfo").innerHTML = editingAttachment
+      ? `<span class="attach-chip"><span class="fname">📎 ${esc(editingAttachment.name)} (${fmtSize(editingAttachment.size)})</span><span class="x" id="removeAttach">✕</span></span>`
+      : "";
+    const x = $("removeAttach");
+    if (x) x.addEventListener("click", () => { editingAttachment = null; renderAttachInfo(); });
+  }
+  // Analyze file text and suggest title / tools / tags / notes
+  function analyzeText(text, filename) {
+    const a = { title: "", notes: "", tools: [], tags: [] };
+    let body = text;
+    // YAML frontmatter (the Claude Skill SKILL.md format)
+    const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (fm) {
+      body = text.slice(fm[0].length);
+      fm[1].split(/\r?\n/).forEach(line => {
+        const m = line.match(/^([A-Za-z][\w-]*):\s*(.+)$/);
+        if (!m) return;
+        const key = m[1].toLowerCase(), val = m[2].trim().replace(/^["']|["']$/g, "");
+        if (key === "name" || key === "title") a.title = val.replace(/[-_]+/g, " ");
+        if (key === "description") a.notes = val;
+        if (key === "tags" || key === "keywords") a.tags = val.replace(/[\[\]]/g, "").split(",").map(s => s.trim()).filter(Boolean);
+      });
+      a.tools.push("claude-skill");
+    }
+    if (!a.title) {
+      const h = body.match(/^#\s+(.+)$/m);
+      a.title = h ? h[1].trim() : filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    }
+    const hay = (filename + " " + text.slice(0, 4000)).toLowerCase();
+    if (/gemini|\bgem\b/.test(hay)) a.tools.push("gemini-gem");
+    if (/chatgpt|openai|custom instructions|\bgpt\b/.test(hay)) a.tools.push("chatgpt");
+    if (/copilot/.test(hay)) a.tools.push("copilot");
+    if (/midjourney|\/imagine|--ar \d/.test(hay)) a.tools.push("midjourney");
+    if (/perplexity/.test(hay)) a.tools.push("perplexity");
+    if (/claude|anthropic|skill\.md/.test(hay) && !a.tools.includes("claude-skill")) a.tools.push("claude-skill");
+    if (!a.tags.length) {
+      const topics = {
+        coding: /\bcodes?\b|coding|program|debug|refactor|develop/, writing: /\bwrit|essay|blog|copy\b/,
+        research: /research|analy[sz]/, images: /image|photo|picture|\bart\b/, email: /\be-?mail\b/,
+        marketing: /marketing|\bseo\b|campaign/, data: /\bdata\b|\bsql\b|excel|spreadsheet/,
+      };
+      for (const [tag, re] of Object.entries(topics)) if (re.test(hay)) a.tags.push(tag);
+      a.tags = a.tags.slice(0, 3);
+    }
+    if (!a.notes) {
+      const para = body.split(/\r?\n\r?\n/).map(s => s.trim()).find(s => s && !/^[#\-*>`]|^---/.test(s));
+      if (para) a.notes = para.replace(/\s+/g, " ").slice(0, 200);
+    }
+    return a;
+  }
+
+  // Fill form fields from analysis — never overwrite what's already typed
+  function applyAnalysis(a) {
+    if (a.title && !$("fTitle").value.trim()) $("fTitle").value = a.title;
+    if (a.tools.length) { a.tools.forEach(t => selectedTools.add(t)); renderToolOptions(); }
+    if (a.tags.length && !$("fTags").value.trim()) $("fTags").value = a.tags.join(", ");
+    if (a.notes && !$("fNotes").value.trim()) $("fNotes").value = a.notes;
+  }
+
+  // Pull SKILL.md (or any .md) text out of a zip — Claude skills ship as zips
+  async function extractMdFromZip(file) {
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const dv = new DataView(buf.buffer);
+      let eocd = -1;
+      for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65557); i--) {
+        if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) return null;
+      const count = dv.getUint16(eocd + 10, true);
+      let off = dv.getUint32(eocd + 16, true);
+      const dec = new TextDecoder();
+      let best = null;
+      for (let n = 0; n < count; n++) {
+        if (dv.getUint32(off, true) !== 0x02014b50) break;
+        const method = dv.getUint16(off + 10, true);
+        const csize = dv.getUint32(off + 20, true);
+        const nameLen = dv.getUint16(off + 28, true);
+        const extraLen = dv.getUint16(off + 30, true);
+        const cmtLen = dv.getUint16(off + 32, true);
+        const lho = dv.getUint32(off + 42, true);
+        const name = dec.decode(buf.subarray(off + 46, off + 46 + nameLen));
+        const isSkill = /(^|\/)skill\.md$/i.test(name);
+        if ((isSkill || /\.md$/i.test(name)) && (!best || (isSkill && !best.isSkill))) {
+          best = { name, method, csize, lho, isSkill };
+        }
+        off += 46 + nameLen + extraLen + cmtLen;
+      }
+      if (!best) return null;
+      const nLen = dv.getUint16(best.lho + 26, true), eLen = dv.getUint16(best.lho + 28, true);
+      const start = best.lho + 30 + nLen + eLen;
+      const cdata = buf.subarray(start, start + best.csize);
+      if (best.method === 0) return dec.decode(cdata);
+      if (best.method === 8 && typeof DecompressionStream !== "undefined") {
+        const stream = new Blob([cdata]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        return await new Response(stream).text();
+      }
+      return null;
+    } catch { return null; }
+  }
+
+  $("attachBtn").addEventListener("click", () => $("attachFile").click());
+  $("attachFile").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_FILE) { toast("⚠️ File too big (max 2 MB)"); return; }
+    const isText = /^text\//.test(file.type) || /json|xml|yaml|javascript/.test(file.type)
+      || /\.(md|txt|json|ya?ml|xml|csv|prompt)$/i.test(file.name);
+    const isZip = /zip/.test(file.type) || /\.(zip|skill)$/i.test(file.name);
+    if (isText) {
+      const text = await file.text();
+      const area = $("fContent");
+      area.value = area.value ? area.value + "\n\n" + text : text;
+      applyAnalysis(analyzeText(text, file.name));
+      toast("File analyzed — details filled ✓");
+    } else {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        editingAttachment = { name: file.name, type: file.type || "application/octet-stream", size: file.size, data: reader.result };
+        renderAttachInfo();
+        let analyzed = false;
+        if (isZip) {
+          const md = await extractMdFromZip(file);
+          if (md) {
+            const area = $("fContent");
+            if (!area.value.trim()) area.value = md;
+            applyAnalysis(analyzeText(md, file.name));
+            analyzed = true;
+          } else {
+            applyAnalysis(analyzeText("", file.name));
+          }
+        }
+        toast(analyzed ? "Skill analyzed — details filled ✓" : "File attached ✓");
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  function openEditor(p) {
+    editingId = p ? p.id : null;
+    $("editorTitle").textContent = p ? "Edit Prompt" : "New Prompt";
+    $("fTitle").value = p ? p.title : "";
+    selectedTools = new Set(p ? (p.tools || []) : ["claude-skill"]);
+    $("fCustomTool").value = p ? (p.customTool || "") : "";
+    renderToolOptions();
+    editingAttachment = p ? (p.attachment || null) : null;
+    renderAttachInfo();
+    $("fContent").value = p ? p.content : "";
+    $("fTags").value = p ? (p.tags || []).join(", ") : "";
+    $("fNotes").value = p ? (p.notes || "") : "";
+    openSheet("editor");
+    if (!p) setTimeout(() => $("fTitle").focus(), 300);
+  }
+
+  $("fab").addEventListener("click", () => openEditor(null));
+  $("cancelEdit").addEventListener("click", () => closeSheet("editor"));
+  $("saveEdit").addEventListener("click", () => {
+    const title = $("fTitle").value.trim();
+    const content = $("fContent").value.trim();
+    if (!title && !content) { toast("Add a title or some content first"); return; }
+    const data = {
+      title: title || "Untitled",
+      tools: [...selectedTools],
+      customTool: selectedTools.has("other") ? $("fCustomTool").value.trim() : "",
+      content,
+      attachment: editingAttachment,
+      tags: $("fTags").value.split(",").map(s => s.trim()).filter(Boolean),
+      notes: $("fNotes").value.trim(),
+      updatedAt: Date.now(),
+    };
+    if (editingId) {
+      const p = prompts.find(p => p.id === editingId);
+      Object.assign(p, data);
+    } else {
+      prompts.push({ id: uid(), favorite: false, createdAt: Date.now(), ...data });
+    }
+    persist(); render(); closeSheet("editor");
+    toast(editingId ? "Saved ✓" : "Prompt added ✓");
+  });
+
+  // ---------- Detail ----------
+  function openDetail(id) {
+    const p = prompts.find(p => p.id === id);
+    if (!p) return;
+    detailId = id;
+    $("dTool").innerHTML = toolList(p).map(badgeHtml).join("");
+    $("dTitle").textContent = p.title;
+    $("dMeta").textContent = "Updated " + new Date(p.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    $("dContent").textContent = p.content || "(no content)";
+    const att = p.attachment;
+    $("dAttach").innerHTML = att
+      ? `<div class="attach-chip" style="cursor:pointer" id="dAttachDl" title="Download"><span class="fname">📎 ${esc(att.name)} (${fmtSize(att.size)})</span><span>⬇</span></div>`
+      : "";
+    if (att) $("dAttachDl").addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = att.data; a.download = att.name; a.click();
+    });
+    $("dNotes").textContent = p.notes || "";
+    $("dNotes").style.display = p.notes ? "" : "none";
+    $("dTags").innerHTML = (p.tags || []).map(tag => `<span class="tag">#${esc(tag)}</span>`).join("");
+    $("dFav").textContent = p.favorite ? "★" : "☆";
+    $("dFav").style.color = p.favorite ? "var(--accent)" : "";
+    openSheet("detail");
+  }
+
+  listEl.addEventListener("click", e => {
+    const copyBtn = e.target.closest("[data-copy]");
+    if (copyBtn) { e.stopPropagation(); copyPrompt(copyBtn.dataset.copy); return; }
+    const card = e.target.closest(".card");
+    if (card) openDetail(card.dataset.id);
+  });
+
+  $("dCopy").addEventListener("click", () => copyPrompt(detailId));
+  $("dFav").addEventListener("click", () => {
+    const p = prompts.find(p => p.id === detailId);
+    p.favorite = !p.favorite; p.updatedAt = Date.now();
+    persist(); render(); openDetail(detailId);
+  });
+  $("dEdit").addEventListener("click", () => {
+    closeSheet("detail");
+    openEditor(prompts.find(p => p.id === detailId));
+  });
+  $("dDelete").addEventListener("click", () => {
+    const p = prompts.find(p => p.id === detailId);
+    if (!confirm(`Delete “${p.title}”?`)) return;
+    prompts = prompts.filter(x => x.id !== detailId);
+    persist(); render(); closeSheet("detail");
+    toast("Deleted");
+  });
+
+  async function copyPrompt(id) {
+    const p = prompts.find(p => p.id === id);
+    if (!p) return;
+    try {
+      await navigator.clipboard.writeText(p.content);
+      toast("Copied to clipboard ✓");
+    } catch {
+      // Fallback for older browsers / non-secure contexts
+      const ta = document.createElement("textarea");
+      ta.value = p.content; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy"); ta.remove();
+      toast("Copied to clipboard ✓");
+    }
+  }
+
+  // ---------- Filters & search ----------
+  chipsEl.addEventListener("click", e => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    filterTool = chip.dataset.tool;
+    render();
+  });
+  searchEl.addEventListener("input", () => {
+    searchQuery = searchEl.value.trim();
+    $("clearSearch").style.display = searchQuery ? "block" : "none";
+    renderList();
+  });
+  $("clearSearch").addEventListener("click", () => {
+    searchEl.value = ""; searchQuery = "";
+    $("clearSearch").style.display = "none";
+    renderList(); searchEl.focus();
+  });
+  $("favToggle").addEventListener("click", () => { favOnly = !favOnly; renderList(); });
+
+  // ---------- Settings: export / import / share ----------
+  $("settingsBtn").addEventListener("click", () => openSheet("settings"));
+
+  function backupBlob() {
+    return new Blob(
+      [JSON.stringify({ app: "prompt-library", version: 1, exportedAt: new Date().toISOString(), prompts }, null, 2)],
+      { type: "application/json" });
+  }
+  $("exportBtn").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(backupBlob());
+    a.download = `prompt-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast("Backup downloaded ✓");
+  });
+  $("shareBtn").addEventListener("click", async () => {
+    const file = new File([backupBlob()], "prompt-library-backup.json", { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Prompt Library backup" }); } catch {}
+    } else {
+      toast("Sharing not supported here — use Export instead");
+    }
+  });
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const incoming = Array.isArray(data) ? data : data.prompts;
+      if (!Array.isArray(incoming)) throw new Error("bad format");
+      let added = 0, updated = 0;
+      incoming.forEach(inP => {
+        if (!inP || typeof inP !== "object") return;
+        if (!Array.isArray(inP.tools)) inP.tools = inP.tool ? [inP.tool] : [];
+        const existing = prompts.find(p => p.id === inP.id);
+        if (existing) {
+          if ((inP.updatedAt || 0) > (existing.updatedAt || 0)) { Object.assign(existing, inP); updated++; }
+        } else {
+          prompts.push({ favorite: false, tags: [], notes: "", createdAt: Date.now(), updatedAt: Date.now(), ...inP, id: inP.id || uid() });
+          added++;
+        }
+      });
+      persist(); render(); closeSheet("settings");
+      toast(`Imported: ${added} new, ${updated} updated ✓`);
+    } catch {
+      toast("⚠️ Couldn't read that file");
+    }
+    e.target.value = "";
+  });
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
