@@ -310,6 +310,25 @@
 <div class="sheet" id="settingsSheet">
   <div class="sheet-handle"></div>
   <h2>Settings</h2>
+  <div id="syncSection" style="border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <span style="font-size:1.2rem">☁️</span>
+      <strong style="font-size:1rem">Cloud Sync</strong>
+      <span id="syncStatus" style="margin-left:auto;font-size:0.78rem;color:var(--text-dim)">Not connected</span>
+    </div>
+    <p style="color:var(--text-dim);font-size:0.8rem;line-height:1.45;margin:6px 0 12px">
+      Sync your library across all your devices using a private GitHub Gist. Connect once on each device.
+    </p>
+    <div id="syncDisconnected">
+      <button class="btn btn-primary" id="connectSyncBtn" style="width:100%;padding:12px">🔗 Connect GitHub</button>
+    </div>
+    <div id="syncConnected" style="display:none">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-secondary" id="syncNowBtn">🔄 Sync now</button>
+        <button class="btn btn-danger" id="disconnectSyncBtn">Disconnect</button>
+      </div>
+    </div>
+  </div>
   <button class="menu-item" id="exportBtn">
     <span class="mi">⬇️</span>
     <span>Export backup<small>Download all prompts as a JSON file</small></span>
@@ -323,6 +342,28 @@
     <span>Share backup<small>Send your library via the share sheet</small></span>
   </button>
   <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+</div>
+
+<!-- Token sheet -->
+<div class="sheet-backdrop" id="tokenBackdrop"></div>
+<div class="sheet" id="tokenSheet">
+  <div class="sheet-handle"></div>
+  <h2>Connect GitHub</h2>
+  <p style="color:var(--text-dim);font-size:0.85rem;line-height:1.5;margin-bottom:6px">
+    Paste a GitHub token with <b>Gist</b> permission. Your prompts are stored in a
+    <b>private</b> gist only you can see.
+  </p>
+  <a id="tokenLink" href="https://github.com/settings/tokens/new?scopes=gist&description=Prompt%20Library%20Sync" target="_blank"
+     style="display:inline-block;color:var(--accent);font-size:0.85rem;margin-bottom:4px">→ Create a token (opens GitHub)</a>
+  <p style="color:var(--text-dim);font-size:0.75rem;line-height:1.4;margin-bottom:10px">
+    On that page: scroll down, click <b>Generate token</b>, then copy it and paste below.
+  </p>
+  <label for="tokenInput">GitHub token</label>
+  <input type="text" id="tokenInput" placeholder="ghp_…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="btn-row">
+    <button class="btn btn-secondary" id="tokenCancel">Cancel</button>
+    <button class="btn btn-primary" id="tokenSave">Connect</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -371,11 +412,29 @@
       },
     ];
   }
-  function persist() {
+  function persist(skipPush) {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(prompts)); }
     catch (e) { toast("⚠️ Could not save (storage full?)"); }
+    if (!skipPush) cloud.schedulePush();
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // Merge an incoming list into `prompts` (newest updatedAt wins). Returns {added, updated}.
+  function mergePrompts(incoming) {
+    let added = 0, updated = 0;
+    incoming.forEach(inP => {
+      if (!inP || typeof inP !== "object") return;
+      if (!Array.isArray(inP.tools)) inP.tools = inP.tool ? [inP.tool] : [];
+      const existing = prompts.find(p => p.id === inP.id);
+      if (existing) {
+        if ((inP.updatedAt || 0) > (existing.updatedAt || 0)) { Object.assign(existing, inP); updated++; }
+      } else {
+        prompts.push({ favorite: false, tags: [], notes: "", createdAt: Date.now(), updatedAt: Date.now(), ...inP, id: inP.id || uid() });
+        added++;
+      }
+    });
+    return { added, updated };
+  }
 
   function toolMeta(id, customTool) {
     const t = TOOLS.find(t => t.id === id) || TOOLS[TOOLS.length - 1];
@@ -472,7 +531,7 @@
     $(name + "Backdrop").classList.remove("open");
     $(name + "Sheet").classList.remove("open");
   }
-  ["editor", "detail", "settings"].forEach(name => {
+  ["editor", "detail", "settings", "token"].forEach(name => {
     $(name + "Backdrop").addEventListener("click", () => closeSheet(name));
   });
 
@@ -796,24 +855,163 @@
       const data = JSON.parse(await file.text());
       const incoming = Array.isArray(data) ? data : data.prompts;
       if (!Array.isArray(incoming)) throw new Error("bad format");
-      let added = 0, updated = 0;
-      incoming.forEach(inP => {
-        if (!inP || typeof inP !== "object") return;
-        if (!Array.isArray(inP.tools)) inP.tools = inP.tool ? [inP.tool] : [];
-        const existing = prompts.find(p => p.id === inP.id);
-        if (existing) {
-          if ((inP.updatedAt || 0) > (existing.updatedAt || 0)) { Object.assign(existing, inP); updated++; }
-        } else {
-          prompts.push({ favorite: false, tags: [], notes: "", createdAt: Date.now(), updatedAt: Date.now(), ...inP, id: inP.id || uid() });
-          added++;
-        }
-      });
+      const { added, updated } = mergePrompts(incoming);
       persist(); render(); closeSheet("settings");
       toast(`Imported: ${added} new, ${updated} updated ✓`);
     } catch {
       toast("⚠️ Couldn't read that file");
     }
     e.target.value = "";
+  });
+
+  // ---------- Cloud sync (private GitHub Gist) ----------
+  const cloud = (() => {
+    const TOKEN_KEY = "promptLibrary.ghToken";
+    const GIST_KEY = "promptLibrary.gistId";
+    const GIST_DESC = "Prompt Library Sync — do not delete";
+    const FILE_NAME = "prompt-library.json";
+    let token = localStorage.getItem(TOKEN_KEY) || "";
+    let gistId = localStorage.getItem(GIST_KEY) || "";
+    let pushTimer = null, busy = false;
+
+    function connected() { return !!token; }
+    async function api(path, opts = {}) {
+      const res = await fetch("https://api.github.com" + path, {
+        ...opts,
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Accept": "application/vnd.github+json",
+          ...(opts.body ? { "Content-Type": "application/json" } : {}),
+        },
+      });
+      if (!res.ok) {
+        const msg = res.status === 401 ? "Invalid or expired token"
+          : res.status === 403 ? "Token lacks 'gist' permission" : "GitHub error " + res.status;
+        throw new Error(msg);
+      }
+      return res.status === 204 ? null : res.json();
+    }
+
+    function setStatus(text, dim) {
+      const el = $("syncStatus");
+      if (el) { el.textContent = text; el.style.color = dim ? "var(--text-dim)" : "var(--green)"; }
+    }
+    function refreshUI() {
+      $("syncDisconnected").style.display = connected() ? "none" : "";
+      $("syncConnected").style.display = connected() ? "" : "none";
+      setStatus(connected() ? "Connected ✓" : "Not connected", !connected());
+    }
+
+    // Find our existing sync gist, or create one from current prompts.
+    async function findOrCreateGist() {
+      const gists = await api("/gists?per_page=100");
+      const found = gists.find(g => g.description === GIST_DESC && g.files && g.files[FILE_NAME]);
+      if (found) { gistId = found.id; localStorage.setItem(GIST_KEY, gistId); return; }
+      const created = await api("/gists", {
+        method: "POST",
+        body: JSON.stringify({
+          description: GIST_DESC, public: false,
+          files: { [FILE_NAME]: { content: JSON.stringify({ prompts }, null, 2) } },
+        }),
+      });
+      gistId = created.id; localStorage.setItem(GIST_KEY, gistId);
+    }
+
+    async function pull() {
+      if (!connected() || !gistId) return { added: 0, updated: 0 };
+      const gist = await api("/gists/" + gistId);
+      const file = gist.files && gist.files[FILE_NAME];
+      if (!file) return { added: 0, updated: 0 };
+      let content = file.content;
+      if (file.truncated && file.raw_url) content = await (await fetch(file.raw_url)).text();
+      const data = JSON.parse(content);
+      const incoming = Array.isArray(data) ? data : (data.prompts || []);
+      const r = mergePrompts(incoming);
+      if (r.added || r.updated) { persist(true); render(); }
+      return r;
+    }
+
+    async function push() {
+      if (!connected() || !gistId) return;
+      await api("/gists/" + gistId, {
+        method: "PATCH",
+        body: JSON.stringify({ files: { [FILE_NAME]: { content: JSON.stringify({ prompts }, null, 2) } } }),
+      });
+    }
+
+    function schedulePush() {
+      if (!connected()) return;
+      clearTimeout(pushTimer);
+      setStatus("Saving…", true);
+      pushTimer = setTimeout(async () => {
+        try { await push(); setStatus("Synced ✓", false); }
+        catch (e) { setStatus("⚠️ " + e.message, true); }
+      }, 1500);
+    }
+
+    // Full two-way sync: pull (merge) then push the merged result up.
+    async function syncNow(silent) {
+      if (!connected()) return;
+      if (busy) return; busy = true;
+      try {
+        setStatus("Syncing…", true);
+        if (!gistId) await findOrCreateGist();
+        const r = await pull();
+        await push();
+        setStatus("Synced ✓", false);
+        if (!silent) toast(`Synced ✓ (${r.added} new, ${r.updated} updated)`);
+      } catch (e) {
+        setStatus("⚠️ " + e.message, true);
+        if (!silent) toast("⚠️ " + e.message);
+      } finally { busy = false; }
+    }
+
+    async function connect(newToken) {
+      token = newToken.trim();
+      localStorage.setItem(TOKEN_KEY, token);
+      gistId = ""; localStorage.removeItem(GIST_KEY);
+      try {
+        await findOrCreateGist();
+        refreshUI();
+        await syncNow();
+        return true;
+      } catch (e) {
+        token = ""; localStorage.removeItem(TOKEN_KEY);
+        refreshUI();
+        toast("⚠️ " + e.message);
+        return false;
+      }
+    }
+
+    function disconnect() {
+      token = ""; gistId = "";
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(GIST_KEY);
+      refreshUI();
+      toast("Disconnected — data stays on this device");
+    }
+
+    return { connected, connect, disconnect, syncNow, schedulePush, refreshUI };
+  })();
+
+  // Sync UI wiring
+  $("connectSyncBtn").addEventListener("click", () => {
+    $("tokenInput").value = "";
+    openSheet("token");
+    setTimeout(() => $("tokenInput").focus(), 300);
+  });
+  $("tokenCancel").addEventListener("click", () => closeSheet("token"));
+  $("tokenSave").addEventListener("click", async () => {
+    const val = $("tokenInput").value.trim();
+    if (!val) { toast("Paste your token first"); return; }
+    $("tokenSave").textContent = "Connecting…";
+    const ok = await cloud.connect(val);
+    $("tokenSave").textContent = "Connect";
+    if (ok) { closeSheet("token"); toast("Connected & synced ✓"); }
+  });
+  $("syncNowBtn").addEventListener("click", () => cloud.syncNow());
+  $("disconnectSyncBtn").addEventListener("click", () => {
+    if (confirm("Disconnect cloud sync? Your prompts stay on this device.")) cloud.disconnect();
   });
 
   // ---------- Toast ----------
@@ -827,6 +1025,8 @@
   }
 
   render();
+  cloud.refreshUI();
+  if (cloud.connected()) cloud.syncNow(true);
 })();
 </script>
 </body>
